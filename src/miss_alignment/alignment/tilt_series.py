@@ -4,6 +4,7 @@ This module provides the main entry point for evaluating and optimizing
 tilt series alignment using trained models.
 """
 
+import math
 from pathlib import Path
 
 import einops
@@ -115,6 +116,72 @@ def generate_position_grid(
     return position_grid
 
 
+def select_foreground_positions(
+    tilt_series,
+    images: torch.Tensor,
+    pixel_size: float,
+    positions: torch.Tensor,
+    patch_size: int,
+    keep_fraction: float,
+    batch_size: int = 16,
+    apply_ctf: bool = False,
+    device: str | torch.device = "cpu",
+) -> torch.Tensor:
+    """Keep only the most informative reconstruction positions (drop empty ice).
+
+    Cryo-ET volumes are mostly empty vitreous ice; reconstructing and scoring
+    those patches on every LBFGS line-search evaluation is wasted work. This does
+    a single cheap pass -- one no-grad reconstruction per position at
+    ``oversampling=1.0`` and without CTF, under the *current* alignment -- ranks
+    each patch by its intensity variance (ice is ~flat, biological signal has
+    structure), and returns the ``keep_fraction`` highest-variance positions.
+
+    This is faithful to the alignment objective: the precision-weighted score
+    already drives those low-variance patches to ~zero weight (their predicted
+    precision collapses), so dropping them barely changes the optimum while
+    shrinking the grid reconstructed on every closure evaluation. The mask is
+    computed once and frozen for the whole solve, so the objective surface stays
+    smooth.
+
+    ``keep_fraction >= 1.0`` returns ``positions`` unchanged (a no-op).
+    """
+    n_positions = positions.shape[0]
+    if keep_fraction >= 1.0 or n_positions <= 1:
+        return positions
+    keep_fraction = max(0.0, keep_fraction)
+    n_keep = max(1, int(round(n_positions * keep_fraction)))
+    if n_keep >= n_positions:
+        return positions
+
+    # Reconstruct each position once under the current alignment and score it by
+    # intensity variance. Mirror the optimizers' device discipline: move the
+    # tilt-series onto the compute device for the pass, then back to CPU so the
+    # subsequent optimizer call sees the same pre-call state.
+    tilt_series.to(device)
+    images = images.to(device)
+    variances = torch.empty(n_positions, device=device)
+    n_batches = int(math.ceil(n_positions / batch_size))
+    with torch.no_grad():
+        for b in range(n_batches):
+            batch = positions[b * batch_size : (b + 1) * batch_size].to(device)
+            subvolumes = tilt_series.reconstruct_subvolumes_single(
+                tilt_data=images,
+                coords=batch,
+                pixel_size=pixel_size,
+                size=patch_size,
+                apply_ctf=apply_ctf,
+                oversampling=1.0,
+            )
+            variances[b * batch_size : b * batch_size + batch.shape[0]] = torch.var(
+                subvolumes, dim=(-3, -2, -1)
+            )
+    tilt_series.to("cpu")
+
+    keep_idx = torch.topk(variances, n_keep).indices
+    keep_idx = torch.sort(keep_idx).values
+    return positions[keep_idx.to(positions.device)]
+
+
 def evaluate_tilt_series(
     model_checkpoint_path: Path,
     tilt_series_path: Path,
@@ -130,6 +197,7 @@ def evaluate_tilt_series(
     n_control_points: int = 7,
     lbfgs_options: dict | None = None,
     anchoring_expand_per_step: int = 1,
+    foreground_keep_fraction: float = 1.0,
 ) -> tuple[Path, list[float]]:
     """Evaluate and optimize tilt series alignment using trained model.
 
@@ -164,6 +232,14 @@ def evaluate_tilt_series(
         Initial reliable fraction for "anchoring" setting.
     n_control_points : int
         Number of spline control points for "spline" setting.
+    lbfgs_options : dict | None
+        Optional LBFGS line-search caps (max_iter / max_eval / history_size).
+    anchoring_expand_per_step : int
+        Tilts promoted to reliable per side per "anchoring" step (1 = original).
+    foreground_keep_fraction : float
+        Fraction of the highest-variance (most informative) grid positions to
+        keep; the rest (empty ice) are dropped before optimization. 1.0 keeps
+        all positions (default, no change). See ``select_foreground_positions``.
 
     Returns
     -------
@@ -206,6 +282,21 @@ def evaluate_tilt_series(
         patch_size=patch_size,
         patch_overlap=patch_overlap,
     )
+
+    # optionally drop empty-ice positions so the optimizer only reconstructs the
+    # informative patches (no-op when foreground_keep_fraction >= 1.0)
+    if foreground_keep_fraction < 1.0:
+        position_grid = select_foreground_positions(
+            tilt_series=tilt_series,
+            images=images,
+            pixel_size=pixel_size,
+            positions=position_grid,
+            patch_size=patch_size,
+            keep_fraction=foreground_keep_fraction,
+            batch_size=batch_size,
+            apply_ctf=apply_ctf,
+            device=device,
+        )
 
     # run alignment optimization with the model
     if setting == "anchoring":

@@ -524,6 +524,9 @@ def train_miss_align(
             anchoring_expand_per_step=alignment_config.get(
                 "anchoring_expand_per_step", 1
             ),
+            foreground_keep_fraction=alignment_config.get(
+                "foreground_keep_fraction", 1.0
+            ),
         )
 
         # make copies of the xml files and model after alignment

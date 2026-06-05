@@ -60,6 +60,7 @@ def run_alignment_parallel(
     devices_list: list[int],
     lbfgs_options: dict | None = None,
     anchoring_expand_per_step: int = 1,
+    foreground_keep_fraction: float = 1.0,
 ) -> dict[str, float]:
     """Run a job in parallel over a single or multiple GPUs. If no volume_splits are
     given the search is parallelized by splitting the angular search. If volume_splits
@@ -95,6 +96,7 @@ def run_alignment_parallel(
             "downsample": downsample,
             "lbfgs_options": lbfgs_options,
             "anchoring_expand_per_step": anchoring_expand_per_step,
+            "foreground_keep_fraction": foreground_keep_fraction,
         }
         for tilt_series in tilt_series_list
     ]

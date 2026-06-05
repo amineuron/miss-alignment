@@ -62,3 +62,8 @@ tilt_series_alignment:
   # values run proportionally fewer solves and are reverted automatically if the
   # loss worsens, so the accuracy risk is bounded.
   anchoring_expand_per_step: 2
+  # Fraction of grid positions to keep, ranked by patch variance. Empty vitreous
+  # ice is ~flat, so dropping the lowest-variance patches removes reconstructions
+  # the precision-weighted score already ignores. 1.0 keeps everything (default);
+  # e.g. 0.6 drops the emptiest 40%. Tune per dataset (start conservative).
+  foreground_keep_fraction: 1.0
