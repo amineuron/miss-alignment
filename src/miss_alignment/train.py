@@ -485,12 +485,16 @@ def train_miss_align(
         # each iteration (no leakage from an earlier override). Set before the
         # training spawn and the alignment call so the pool workers and the
         # alignment closure use the same value within this iteration.
-        os.environ["MISS_RECONSTRUCTION_OVERSAMPLING"] = str(
-            iteration_settings.get("oversampling", base_oversampling)
-        )
+        iter_oversampling = iteration_settings.get("oversampling", base_oversampling)
+        iter_apply_ctf = iteration_settings.get("apply_ctf", general_config["apply_ctf"])
+        os.environ["MISS_RECONSTRUCTION_OVERSAMPLING"] = str(iter_oversampling)
 
         print(f"\n{'=' * 60}")
-        print(f"Iteration {x + 1}/{end_iter} - Alignment: {alignment_mode}")
+        print(
+            f"Iteration {x + 1}/{end_iter} - Alignment: {alignment_mode} | "
+            f"downsample: {iteration_settings['downsample']} | "
+            f"oversampling: {iter_oversampling} | CTF: {iter_apply_ctf}"
+        )
         print(f"{'=' * 60}\n")
 
         # Run the training phase. Multi-GPU spawns one DDP worker per training
