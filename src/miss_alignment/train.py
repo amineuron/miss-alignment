@@ -280,7 +280,7 @@ def _training_worker(
         n_training_devices=len(devices_training),
         batch_size=data_module_config["batch_size"],
         patch_size=data_module_config["patch_size"],
-        apply_ctf=general_config["apply_ctf"],
+        apply_ctf=iteration_settings.get("apply_ctf", general_config["apply_ctf"]),
         downsample=iteration_settings["downsample"],
         steps_per_epoch=data_module_config["steps_per_epoch"],
         pool_size=pool_size,
@@ -418,6 +418,11 @@ def train_miss_align(
         "MISS_RECONSTRUCTION_OVERSAMPLING",
         str(general_config.get("reconstruction_oversampling", 2.0)),
     )
+    # Base oversampling (external env override wins, else general config, else
+    # 2.0). A per-iteration iteration_settings["oversampling"] overrides this in
+    # the macro loop below; we re-resolve from this base every iteration so an
+    # earlier iteration's override never leaks into one that omits the key.
+    base_oversampling = os.environ["MISS_RECONSTRUCTION_OVERSAMPLING"]
 
     # Set up training environment
     torch.set_float32_matmul_precision("medium")
@@ -475,6 +480,15 @@ def train_miss_align(
         # ============================================================
         iteration_settings = general_config["iteration_settings"][x]
         alignment_mode = iteration_settings["alignment"]
+
+        # Per-iteration reconstruction oversampling, re-resolved from the base
+        # each iteration (no leakage from an earlier override). Set before the
+        # training spawn and the alignment call so the pool workers and the
+        # alignment closure use the same value within this iteration.
+        os.environ["MISS_RECONSTRUCTION_OVERSAMPLING"] = str(
+            iteration_settings.get("oversampling", base_oversampling)
+        )
+
         print(f"\n{'=' * 60}")
         print(f"Iteration {x + 1}/{end_iter} - Alignment: {alignment_mode}")
         print(f"{'=' * 60}\n")
@@ -527,7 +541,7 @@ def train_miss_align(
             patch_size=alignment_config["patch_size"],
             patch_overlap=alignment_config["patch_overlap"],
             batch_size=alignment_config["batch_size"],
-            apply_ctf=general_config["apply_ctf"],
+            apply_ctf=iteration_settings.get("apply_ctf", general_config["apply_ctf"]),
             downsample=iteration_settings["downsample"],
             devices_list=devices_alignment,
             lbfgs_options=alignment_config.get("lbfgs_options"),
