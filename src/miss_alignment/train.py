@@ -486,7 +486,9 @@ def train_miss_align(
         # training spawn and the alignment call so the pool workers and the
         # alignment closure use the same value within this iteration.
         iter_oversampling = iteration_settings.get("oversampling", base_oversampling)
-        iter_apply_ctf = iteration_settings.get("apply_ctf", general_config["apply_ctf"])
+        iter_apply_ctf = iteration_settings.get(
+            "apply_ctf", general_config["apply_ctf"]
+        )
         os.environ["MISS_RECONSTRUCTION_OVERSAMPLING"] = str(iter_oversampling)
 
         print(f"\n{'=' * 60}")
