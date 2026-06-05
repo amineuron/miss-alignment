@@ -49,3 +49,16 @@ tilt_series_alignment:
   patch_size: 96      # same as training patch size
   patch_overlap: 0.1  # tolerated overlap between patches used for optimizing the alignment
   batch_size: 32      # amount of patches simultaneously reconstructed in memory -> the more the merrier
+  # --- optional speed knobs; omit any/all of these for the original behaviour ---
+  # Caps for the LBFGS strong-Wolfe line search. Every closure evaluation
+  # reconstructs the whole patch grid (the dominant alignment cost), so lower
+  # values trade a little convergence for far fewer reconstructions. Omit this
+  # block entirely to use PyTorch's defaults (max_iter: 20, history_size: 100).
+  lbfgs_options:
+    max_iter: 6
+    history_size: 10
+  # "anchoring" mode promotes this many tilts per side to "reliable" each step.
+  # 1 reproduces the original schedule (~n_tilts/4 full optimizer solves); larger
+  # values run proportionally fewer solves and are reverted automatically if the
+  # loss worsens, so the accuracy risk is bounded.
+  anchoring_expand_per_step: 2

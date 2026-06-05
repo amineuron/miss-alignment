@@ -58,6 +58,8 @@ def run_alignment_parallel(
     apply_ctf: bool,
     downsample: int,
     devices_list: list[int],
+    lbfgs_options: dict | None = None,
+    anchoring_expand_per_step: int = 1,
 ) -> dict[str, float]:
     """Run a job in parallel over a single or multiple GPUs. If no volume_splits are
     given the search is parallelized by splitting the angular search. If volume_splits
@@ -91,6 +93,8 @@ def run_alignment_parallel(
             "batch_size": batch_size,
             "apply_ctf": apply_ctf,
             "downsample": downsample,
+            "lbfgs_options": lbfgs_options,
+            "anchoring_expand_per_step": anchoring_expand_per_step,
         }
         for tilt_series in tilt_series_list
     ]

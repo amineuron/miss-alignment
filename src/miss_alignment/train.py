@@ -398,6 +398,17 @@ def train_miss_align(
     training_directory = Path(general_config["training_directory"])
     training_directory.mkdir(exist_ok=True, parents=True)
 
+    # Persist torch.compile's on-disk inductor cache across macro-iterations so
+    # the 2nd+ training phases reuse compiled kernels instead of recompiling the
+    # net from scratch every fit (input shapes are fixed, so the cache key is
+    # stable). Set before spawning so the training workers inherit it; setdefault
+    # keeps both overridable from the environment.
+    os.environ.setdefault(
+        "TORCHINDUCTOR_CACHE_DIR",
+        str((training_directory / ".inductor_cache").resolve()),
+    )
+    os.environ.setdefault("TORCHINDUCTOR_FX_GRAPH_CACHE", "1")
+
     # Set up training environment
     torch.set_float32_matmul_precision("medium")
     seed = general_config["seed"]
@@ -509,6 +520,10 @@ def train_miss_align(
             apply_ctf=general_config["apply_ctf"],
             downsample=iteration_settings["downsample"],
             devices_list=devices_alignment,
+            lbfgs_options=alignment_config.get("lbfgs_options"),
+            anchoring_expand_per_step=alignment_config.get(
+                "anchoring_expand_per_step", 1
+            ),
         )
 
         # make copies of the xml files and model after alignment

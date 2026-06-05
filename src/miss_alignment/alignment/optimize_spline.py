@@ -12,7 +12,7 @@ from warpylib import TiltSeries
 
 from miss_alignment.models import MissAlignment
 
-from .optimize_global import AlignmentNanError, optimize_shifts
+from .optimize_global import AlignmentNanError, build_lbfgs, optimize_shifts
 
 
 def evaluate_catmull_rom_spline(
@@ -83,6 +83,7 @@ def optimize_shifts_spline(
     apply_ctf: bool = True,
     device: str | torch.device = "cpu",
     n_control_points: int = 7,
+    lbfgs_options: dict | None = None,
     max_retries: int = 3,
 ):
     """Optimize shifts using a smooth spline parameterization.
@@ -141,6 +142,7 @@ def optimize_shifts_spline(
                 apply_ctf=apply_ctf,
                 device=device,
                 n_control_points=n_control_points,
+                lbfgs_options=lbfgs_options,
             )
         except AlignmentNanError:
             retries_left -= 1
@@ -169,6 +171,7 @@ def _optimize_shifts_spline_inner(
     apply_ctf: bool,
     device: str | torch.device,
     n_control_points: int,
+    lbfgs_options: dict | None = None,
 ):
     """Inner spline optimization function that can raise AlignmentNanError.
 
@@ -207,10 +210,7 @@ def _optimize_shifts_spline_inner(
 
     parameters = [control_deltas_x, control_deltas_y]
 
-    alignment_optimizer = torch.optim.LBFGS(
-        parameters,
-        line_search_fn="strong_wolfe",
-    )
+    alignment_optimizer = build_lbfgs(parameters, lbfgs_options)
 
     loss_values = []
 
@@ -329,6 +329,7 @@ def optimize_shifts_coarse_to_fine(
     apply_ctf: bool = True,
     device: str | torch.device = "cpu",
     n_control_points: int = 7,
+    lbfgs_options: dict | None = None,
 ):
     """Two-phase optimization: smooth spline followed by per-tilt fine adjustment.
 
@@ -378,6 +379,7 @@ def optimize_shifts_coarse_to_fine(
         apply_ctf=apply_ctf,
         device=device,
         n_control_points=n_control_points,
+        lbfgs_options=lbfgs_options,
     )
     all_loss_values.extend(loss_values)
     print(f"  Spline loss: {loss_values[0]:.4f} -> {loss_values[-1]:.4f}")
@@ -395,6 +397,7 @@ def optimize_shifts_coarse_to_fine(
         batch_size=batch_size,
         apply_ctf=apply_ctf,
         device=device,
+        lbfgs_options=lbfgs_options,
     )
     all_loss_values.extend(loss_values)
     print(f"  Per-tilt loss: {loss_values[0]:.4f} -> {loss_values[-1]:.4f}")

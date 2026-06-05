@@ -20,6 +20,7 @@ def run_iterative_anchoring(
     tilt_series: TiltSeries,
     optimize_fn: Callable[[TiltSeries], tuple[TiltSeries, list[float]]],
     initial_reliable_fraction: float = 1 / 2,
+    expand_per_step: int = 1,
 ) -> tuple[TiltSeries, list[float]]:
     """Core iterative anchoring logic for global shift optimization.
 
@@ -40,12 +41,19 @@ def run_iterative_anchoring(
         (optimized_tilt_series, loss_values).
     initial_reliable_fraction : float
         Initial fraction of tilts to consider reliable (0 to 1). Default 1/2.
+    expand_per_step : int
+        Number of tilts to promote to "reliable" per side on each anchoring
+        step. The default of 1 reproduces the original schedule (~n_tilts/4 full
+        optimizer solves); larger values promote faster and run proportionally
+        fewer solves -- the per-step best-loss revert below bounds the accuracy
+        risk. Must be >= 1.
 
     Returns
     -------
     tuple[TiltSeries, list[float]]
         Optimized tilt series and loss values from all iterations.
     """
+    expand_per_step = max(1, int(expand_per_step))
     n_tilts = tilt_series.n_tilts
     sorted_indices = tilt_series.indices_sorted_angle()
 
@@ -158,8 +166,8 @@ def run_iterative_anchoring(
                 + pos_relative_offsets_y[i]
             )
 
-        # Expand reliable set by 1 tilt per side
-        n_unreliable_per_side -= 1
+        # Expand reliable set by `expand_per_step` tilts per side
+        n_unreliable_per_side -= expand_per_step
 
     # Final optimization with all tilts reliable
     tilt_series, loss_values = optimize_fn(tilt_series)
@@ -192,6 +200,8 @@ def optimize_shifts_iterative(
     apply_ctf: bool = True,
     device: str | torch.device = "cpu",
     initial_reliable_fraction: float = 1 / 2,
+    lbfgs_options: dict | None = None,
+    expand_per_step: int = 1,
 ) -> tuple[TiltSeries, list[float]]:
     """Iterative anchored optimization for global shifts.
 
@@ -239,10 +249,12 @@ def optimize_shifts_iterative(
             batch_size=batch_size,
             apply_ctf=apply_ctf,
             device=device,
+            lbfgs_options=lbfgs_options,
         )
 
     return run_iterative_anchoring(
         tilt_series=tilt_series,
         optimize_fn=optimize_fn,
         initial_reliable_fraction=initial_reliable_fraction,
+        expand_per_step=expand_per_step,
     )

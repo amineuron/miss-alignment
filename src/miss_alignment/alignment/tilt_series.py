@@ -128,6 +128,8 @@ def evaluate_tilt_series(
     device: str = "cpu",
     initial_reliable_fraction: float = 1 / 2,
     n_control_points: int = 7,
+    lbfgs_options: dict | None = None,
+    anchoring_expand_per_step: int = 1,
 ) -> tuple[Path, list[float]]:
     """Evaluate and optimize tilt series alignment using trained model.
 
@@ -219,6 +221,8 @@ def evaluate_tilt_series(
             apply_ctf=apply_ctf,
             device=device,
             initial_reliable_fraction=initial_reliable_fraction,
+            lbfgs_options=lbfgs_options,
+            expand_per_step=anchoring_expand_per_step,
         )
     elif setting == "spline":
         # Coarse-to-fine: smooth spline followed by per-tilt adjustment
@@ -233,6 +237,7 @@ def evaluate_tilt_series(
             apply_ctf=apply_ctf,
             device=device,
             n_control_points=n_control_points,
+            lbfgs_options=lbfgs_options,
         )
     else:
         # "global" or tuple settings for 2D/3D warping
@@ -247,6 +252,7 @@ def evaluate_tilt_series(
             batch_size=batch_size,
             apply_ctf=apply_ctf,
             device=device,
+            lbfgs_options=lbfgs_options,
         )
 
     # write all necessary output

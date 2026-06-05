@@ -23,6 +23,26 @@ class AlignmentNanError(Exception):
     pass
 
 
+def build_lbfgs(
+    parameters: list[torch.Tensor],
+    lbfgs_options: dict | None = None,
+) -> torch.optim.LBFGS:
+    """Construct the alignment LBFGS optimizer, with optional line-search caps.
+
+    ``lbfgs_options`` (from the ``tilt_series_alignment`` config block) may set
+    ``max_iter`` / ``max_eval`` / ``history_size`` to bound the strong-Wolfe line
+    search. Every closure evaluation reconstructs the whole position grid -- the
+    dominant cost of the alignment phase -- so lowering these trades a little
+    convergence for far fewer reconstructions. Keys whose value is ``None`` are
+    dropped so PyTorch's defaults (``max_iter=20``, ``history_size=100``) apply,
+    which reproduces the previous behaviour when no options are given.
+    """
+    kwargs: dict = {"line_search_fn": "strong_wolfe"}
+    if lbfgs_options:
+        kwargs.update({k: v for k, v in lbfgs_options.items() if v is not None})
+    return torch.optim.LBFGS(parameters, **kwargs)
+
+
 def optimize_shifts(
     model: MissAlignment,
     tilt_series: TiltSeries,
@@ -34,6 +54,7 @@ def optimize_shifts(
     batch_size: int = 16,
     apply_ctf: bool = True,
     device: str | torch.device = "cpu",
+    lbfgs_options: dict | None = None,
     max_retries: int = 3,
 ):
     """Find shifts to optimize model score.
@@ -151,6 +172,7 @@ def optimize_shifts(
                 batch_size=batch_size,
                 apply_ctf=apply_ctf,
                 device=device,
+                lbfgs_options=lbfgs_options,
                 original_precision=original_precision,
             )
         except AlignmentNanError:
@@ -250,6 +272,7 @@ def _optimize_shifts_inner(
     apply_ctf: bool,
     device: str | torch.device,
     original_precision: str,
+    lbfgs_options: dict | None = None,
 ):
     """Inner optimization function that can raise AlignmentNanError.
 
@@ -333,10 +356,7 @@ def _optimize_shifts_inner(
     else:
         raise ValueError(f"Invalid setting for alignment optimization: {setting}")
 
-    alignment_optimizer = torch.optim.LBFGS(
-        parameters,
-        line_search_fn="strong_wolfe",
-    )
+    alignment_optimizer = build_lbfgs(parameters, lbfgs_options)
 
     # Initialize list to store loss values
     loss_values = []
