@@ -15,6 +15,7 @@ from torch_affine_utils.transforms_2d import R
 
 from miss_alignment.models import MissAlignment
 from miss_alignment.alignment.utils import project_volume_shift_to_image_alignment
+from miss_alignment.utils import reconstruction_oversampling
 
 
 class AlignmentNanError(Exception):
@@ -415,7 +416,7 @@ def _optimize_shifts_inner(
                     pixel_size=pixel_size,
                     size=patch_size,
                     apply_ctf=apply_ctf,
-                    oversampling=2.0,
+                    oversampling=reconstruction_oversampling(),
                 )
 
                 # ensure normalization per subvolume

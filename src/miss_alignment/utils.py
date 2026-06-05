@@ -8,6 +8,29 @@ import torch
 # Env var controlling miss-alignment's own log verbosity (DEBUG/INFO/WARNING/...).
 LOG_LEVEL_ENV_VAR = "MISS_ALIGNMENT_LOG_LEVEL"
 
+# Env var for the reconstruction oversampling factor; see reconstruction_oversampling.
+OVERSAMPLING_ENV_VAR = "MISS_RECONSTRUCTION_OVERSAMPLING"
+DEFAULT_OVERSAMPLING = 2.0
+
+
+def reconstruction_oversampling() -> float:
+    """Oversampling factor for subvolume reconstruction (FFT zero-padding).
+
+    Read from ``MISS_RECONSTRUCTION_OVERSAMPLING`` (set once in ``train.py`` from
+    ``general.reconstruction_oversampling`` and inherited across the spawn
+    boundary by the reconstruction workers). Using a single env source guarantees
+    that training-pool generation and the alignment closure ALWAYS reconstruct
+    with the *same* oversampling -- otherwise the model would score
+    out-of-distribution reconstructions. The reconstructed volume is
+    ``(size * oversampling)`` per axis, so the FFT cost scales ~oversampling^3;
+    lowering 2.0 -> 1.5 makes every reconstruction cheaper at some fidelity cost.
+    Defaults to 2.0, which reproduces the original behaviour.
+    """
+    try:
+        return float(os.environ.get(OVERSAMPLING_ENV_VAR, DEFAULT_OVERSAMPLING))
+    except (TypeError, ValueError):
+        return DEFAULT_OVERSAMPLING
+
 
 def configure_logging() -> None:
     """Configure miss-alignment logging from ``MISS_ALIGNMENT_LOG_LEVEL``.

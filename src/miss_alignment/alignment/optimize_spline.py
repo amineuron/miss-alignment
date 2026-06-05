@@ -11,6 +11,7 @@ import torch
 from warpylib import TiltSeries
 
 from miss_alignment.models import MissAlignment
+from miss_alignment.utils import reconstruction_oversampling
 
 from .optimize_global import AlignmentNanError, build_lbfgs, optimize_shifts
 
@@ -258,7 +259,7 @@ def _optimize_shifts_spline_inner(
                     pixel_size=pixel_size,
                     size=patch_size,
                     apply_ctf=apply_ctf,
-                    oversampling=2.0,
+                    oversampling=reconstruction_oversampling(),
                 )
 
                 mean = einops.reduce(subvolumes, "n d h w -> n 1 1 1", reduction="mean")

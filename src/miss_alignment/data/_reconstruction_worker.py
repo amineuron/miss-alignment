@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 from miss_alignment.data.io import TiltSeriesData
 from miss_alignment.data.shift_generation import project_shifts_3d_to_2d
-from miss_alignment.utils import configure_logging
+from miss_alignment.utils import configure_logging, reconstruction_oversampling
 from ._augmentation import MIRROR_COMBINATIONS, apply_mirror
 
 logger = logging.getLogger(__name__)
@@ -357,7 +357,7 @@ def _create_pool_reconstruction(
         size=patch_size,
         apply_ctf=apply_ctf,
         angles=rotation_angles,
-        oversampling=2.0,
+        oversampling=reconstruction_oversampling(),
     ).squeeze()
     # add the extra translations for the misaligned example
     tilt_series.tilt_axis_offset_y += translations_angstrom[:, 0]
@@ -370,7 +370,7 @@ def _create_pool_reconstruction(
         size=patch_size,
         apply_ctf=apply_ctf,
         angles=rotation_angles,
-        oversampling=2.0,
+        oversampling=reconstruction_oversampling(),
     ).squeeze()
 
     # Create anchor (random copy of aligned or misaligned)

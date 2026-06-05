@@ -409,6 +409,16 @@ def train_miss_align(
     )
     os.environ.setdefault("TORCHINDUCTOR_FX_GRAPH_CACHE", "1")
 
+    # Single source of truth for reconstruction oversampling, shared by the
+    # training-pool workers (inherited across the spawn boundary) and the
+    # alignment closure so they can never disagree (the model must score
+    # in-distribution reconstructions). setdefault lets an explicit env override
+    # win for experiments; lower values (e.g. 1.5) speed up every reconstruction.
+    os.environ.setdefault(
+        "MISS_RECONSTRUCTION_OVERSAMPLING",
+        str(general_config.get("reconstruction_oversampling", 2.0)),
+    )
+
     # Set up training environment
     torch.set_float32_matmul_precision("medium")
     seed = general_config["seed"]
