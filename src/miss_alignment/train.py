@@ -137,6 +137,31 @@ def _sync_start_iteration_xmls(start_iter: int, training_directory: Path) -> Non
             copyfile(xml_file, training_directory / xml_file.name)
 
 
+def _resolve_apply_ctf(
+    iteration_settings: dict,
+    general_config: dict,
+    iteration_index: int,
+    n_iterations: int,
+) -> bool:
+    """Whether this macro-iteration reconstructs with CTF correction.
+
+    Precedence (most specific wins):
+    1. an explicit per-iteration ``apply_ctf`` in iteration_settings, else
+    2. the last ``general.ctf_last_iterations`` iterations get CTF (the
+       "enable CTF only for the final refinement" curriculum), else
+    3. the global ``general.apply_ctf`` default.
+
+    Resolved identically for the training pool and the alignment phase so they
+    stay consistent within the iteration.
+    """
+    if "apply_ctf" in iteration_settings:
+        return bool(iteration_settings["apply_ctf"])
+    ctf_last_n = int(general_config.get("ctf_last_iterations", 0))
+    if ctf_last_n > 0 and (n_iterations - iteration_index) <= ctf_last_n:
+        return True
+    return bool(general_config.get("apply_ctf", False))
+
+
 def _training_worker(
     rank: int,
     world_size: int,
@@ -280,7 +305,12 @@ def _training_worker(
         n_training_devices=len(devices_training),
         batch_size=data_module_config["batch_size"],
         patch_size=data_module_config["patch_size"],
-        apply_ctf=iteration_settings.get("apply_ctf", general_config["apply_ctf"]),
+        apply_ctf=_resolve_apply_ctf(
+            iteration_settings,
+            general_config,
+            iteration,
+            len(general_config["iteration_settings"]),
+        ),
         downsample=iteration_settings["downsample"],
         steps_per_epoch=data_module_config["steps_per_epoch"],
         pool_size=pool_size,
@@ -486,8 +516,8 @@ def train_miss_align(
         # training spawn and the alignment call so the pool workers and the
         # alignment closure use the same value within this iteration.
         iter_oversampling = iteration_settings.get("oversampling", base_oversampling)
-        iter_apply_ctf = iteration_settings.get(
-            "apply_ctf", general_config["apply_ctf"]
+        iter_apply_ctf = _resolve_apply_ctf(
+            iteration_settings, general_config, x, end_iter
         )
         os.environ["MISS_RECONSTRUCTION_OVERSAMPLING"] = str(iter_oversampling)
 
@@ -547,7 +577,7 @@ def train_miss_align(
             patch_size=alignment_config["patch_size"],
             patch_overlap=alignment_config["patch_overlap"],
             batch_size=alignment_config["batch_size"],
-            apply_ctf=iteration_settings.get("apply_ctf", general_config["apply_ctf"]),
+            apply_ctf=iter_apply_ctf,
             downsample=iteration_settings["downsample"],
             devices_list=devices_alignment,
             lbfgs_options=alignment_config.get("lbfgs_options"),

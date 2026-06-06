@@ -1,7 +1,11 @@
 general:
   # MissAlignment iteratively trains models and realigns the tilt-series
   training_directory: /data/set/  # path to directory for writing iteration output
-  apply_ctf: False                # global default; can be overridden per iteration below (apply_ctf:)
+  apply_ctf: False                # global default; usually leave False (see ctf_last_iterations)
+  # Enable CTF only for the final N iterations (the refinement where it helps).
+  # CTF ~doubles reconstruction cost, so this is much cheaper than CTF everywhere.
+  # 0 = off. A per-iteration `apply_ctf:` in iteration_settings overrides this.
+  ctf_last_iterations: 2
   # Default reconstruction oversampling (FFT zero-padding), used identically in
   # training-pool generation and the alignment closure. The reconstructed volume
   # is (patch_size * oversampling) per axis, so FFT cost scales ~oversampling^3.
@@ -9,18 +13,18 @@ general:
   reconstruction_oversampling: 2.0
   iteration_settings:             # defines all iterations to run (length determines number of iterations)
     # alignment modes: "global" (single pass), "anchoring" (iterative), "spline" (coarse-to-fine)
-    # Optional per-iteration `oversampling` and `apply_ctf` override the general
-    # defaults -- a coarse-to-fine fidelity curriculum: cheap early, full + CTF at
-    # the end where final quality is set. Both fall back to the general values if
-    # a row omits them, so deleting these keys reproduces the original behaviour.
+    # Optional per-iteration `oversampling` (and `apply_ctf`) override the general
+    # defaults -- a coarse-to-fine fidelity curriculum: cheap early, full at the end
+    # where final quality is set. CTF here is driven by ctf_last_iterations above.
+    # Deleting these keys reproduces the original behaviour.
     - { downsample: 3, alignment: anchoring, oversampling: 1.25 }
     - { downsample: 2, alignment: anchoring, oversampling: 1.25 }
     - { downsample: 1, alignment: global,    oversampling: 1.5 }
     - { downsample: 1, alignment: global,    oversampling: 1.5 }
-    - { downsample: 1, alignment: [3, 3],    oversampling: 2.0 }  # local 3x3 image warp
+    - { downsample: 1, alignment: [3, 3],    oversampling: 1.75 }  # local 3x3 image warp
+    - { downsample: 1, alignment: [3, 3],    oversampling: 1.75 }
+    - { downsample: 1, alignment: [3, 3],    oversampling: 2.0 }   # last 2 get CTF via ctf_last_iterations
     - { downsample: 1, alignment: [3, 3],    oversampling: 2.0 }
-    - { downsample: 1, alignment: [3, 3],    oversampling: 2.0, apply_ctf: true }  # full fidelity + CTF
-    - { downsample: 1, alignment: [3, 3],    oversampling: 2.0, apply_ctf: true }
   seed: 45132
 
 model_training:

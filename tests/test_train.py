@@ -21,6 +21,7 @@ from lightning.pytorch.strategies import DDPStrategy
 
 from miss_alignment.train import (
     _find_free_port,
+    _resolve_apply_ctf,
     _resolve_start_checkpoint,
     _set_ddp_env,
     _sync_start_iteration_xmls,
@@ -206,3 +207,32 @@ def test_sync_start_iteration_xmls_resume_missing_raises(tmp_path):
     """Resuming at an iteration with no snapshot directory is an error."""
     with pytest.raises(FileNotFoundError, match="Cannot resume at iteration 3"):
         _sync_start_iteration_xmls(3, tmp_path)
+
+
+def test_resolve_apply_ctf_last_n_iterations():
+    """ctf_last_iterations enables CTF on the final N iterations only."""
+    n = 8
+    general = {"apply_ctf": False, "ctf_last_iterations": 2}
+    flags = [_resolve_apply_ctf({}, general, x, n) for x in range(n)]
+    assert flags == [False, False, False, False, False, False, True, True]
+
+
+def test_resolve_apply_ctf_off_by_default():
+    """No ctf_last_iterations and no per-iter key -> the global default (False)."""
+    flags = [_resolve_apply_ctf({}, {"apply_ctf": False}, x, 8) for x in range(8)]
+    assert flags == [False] * 8
+
+
+def test_resolve_apply_ctf_per_iteration_overrides():
+    """An explicit per-iteration apply_ctf wins over ctf_last_iterations."""
+    general = {"apply_ctf": False, "ctf_last_iterations": 2}
+    # last iteration would be True via ctf_last_iterations, but the row forces off
+    assert _resolve_apply_ctf({"apply_ctf": False}, general, 7, 8) is False
+    # an early iteration forced on
+    assert _resolve_apply_ctf({"apply_ctf": True}, general, 0, 8) is True
+
+
+def test_resolve_apply_ctf_global_true_applies_everywhere():
+    """A True global default applies to every iteration when nothing overrides."""
+    flags = [_resolve_apply_ctf({}, {"apply_ctf": True}, x, 8) for x in range(8)]
+    assert flags == [True] * 8

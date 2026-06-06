@@ -44,7 +44,8 @@ the `orig` scenario below is your "without these changes" baseline.
     - { downsample: 1, alignment: [3, 3] }
 ```
 
-`orig_ctf` — as `orig` but add `, apply_ctf: true` to the last two rows.
+`orig_ctf` — as `orig`, plus `general.ctf_last_iterations: 2` (CTF on the final
+two iterations; ~2× cost on those, where it actually helps).
 
 `os_curve` (downsample 1 always; ⚠ anchoring at full res on iters 1–2 is expensive):
 ```yaml
@@ -72,7 +73,12 @@ the `orig` scenario below is your "without these changes" baseline.
     - { downsample: 1, alignment: [3, 3],    oversampling: 2.0 }
 ```
 
-`os_curve_ctf` / `both_curve_ctf` — add `, apply_ctf: true` to rows 7–8.
+`os_curve_ctf` / `both_curve_ctf` — same blocks, plus
+`general.ctf_last_iterations: 2`.
+
+> CTF control: set `general.ctf_last_iterations: N` to enable CTF on the final N
+> iterations (cheaper than CTF everywhere, which ~2× the cost). A per-row
+> `apply_ctf:` still overrides it for that iteration.
 
 ## A 100%-pristine baseline (no C3 / no logging either)
 
