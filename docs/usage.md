@@ -26,7 +26,10 @@ Place a miss-alignment config file in the `warp_tiltseries/` directory — use [
   `apply_ctf: False` to its entry in `iteration_settings`. This allows, for
   example, inexpensive non-CTF coarse alignment followed by CTF-aware final
   refinement. During training, the resolved value is used consistently for
-  both model-training reconstructions and alignment in that iteration.
+  both model-training reconstructions and alignment in that iteration. The
+  console reports `Training reconstruction CTF` and `Alignment reconstruction
+  CTF` separately, including the resolved boolean, so both phases are
+  auditable in run logs.
 
 ### 4. Run miss-alignment
 
